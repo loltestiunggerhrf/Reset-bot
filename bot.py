@@ -1,50 +1,59 @@
 import os
-import discord
+import threading
+from flask import Flask
 from discord.ext import commands
 from discord import app_commands
 from pymongo import MongoClient
-import datetime
-from dotenv import load_dotenv
+import time
 
-# Load environment variables
-load_dotenv()
+# Initialize Flask app
+app = Flask(__name__)
 
-# MongoDB Connection
+# Initialize MongoDB connection
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db = client["key_system"]
 hwid_collection = db["hwids"]
 
-# Discord Bot Setup
-TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-intents = discord.Intents.default()
-bot = commands.Bot(command_prefix="/", intents=intents)
+# Initialize Discord bot
+intents = commands.Intents.default()
+bot = commands.Bot(command_prefix='/', intents=intents)
 
-# Cooldown dictionary
-user_cooldowns = {}
+# Flask route to check if the bot is running
+@app.route('/')
+def index():
+    return "Reset HWID bot is running!"  # Display status on the Flask webpage
 
-# Slash Command: /reset_hwid (Resets the user's HWID)
-@bot.tree.command(name="reset_hwid", description="Reset your HWID in the system.")
+# Function to start the Discord bot
+def run_bot():
+    bot.run(os.getenv("DISCORD_BOT_TOKEN"))
+
+# Event: When the bot is ready
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user}')
+
+# Slash command to reset HWID for the user
+@bot.tree.command(name="reset_hwid", description="Reset your HWID to 'None'")
 async def reset_hwid(interaction: discord.Interaction):
-    user_id = interaction.user.id
-
-    # Reset HWID in the database
     hwid_collection.update_one(
-        {"user_id": user_id},
+        {"user_id": interaction.user.id},
         {"$set": {"hwid": "None"}},
         upsert=True
     )
     await interaction.response.send_message("Your HWID has been reset!", ephemeral=True)
 
-# Event: Bot is ready
-@bot.event
-async def on_ready():
-    print(f'Logged in as {bot.user}')
-    try:
-        synced = await bot.tree.sync()  # Sync slash commands
-        print(f"Synced {len(synced)} commands!")
-    except Exception as e:
-        print(f"Failed to sync commands: {e}")
+# Slash command to get bot's status
+@bot.tree.command(name="status", description="Get the current bot status")
+async def status(interaction: discord.Interaction):
+    await interaction.response.send_message("The Reset HWID bot is running fine!", ephemeral=True)
 
-# Run the bot
-bot.run(TOKEN)
+# Start Flask and Discord bot together
+if __name__ == '__main__':
+    # Start the Discord bot in a separate thread
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.start()
+
+    # Start the Flask server
+    port = int(os.environ.get("PORT", 5000))  # Render uses dynamic port for hosting
+    app.run(host='0.0.0.0', port=port)
