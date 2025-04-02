@@ -2,7 +2,7 @@ import os
 import threading
 from flask import Flask
 from discord.ext import commands
-from discord import app_commands
+from discord import Intents
 from pymongo import MongoClient
 import time
 
@@ -15,8 +15,8 @@ client = MongoClient(MONGO_URI)
 db = client["key_system"]
 hwid_collection = db["hwids"]
 
-# Initialize Discord bot
-intents = commands.Intents.default()
+# Initialize Discord bot with correct Intents import
+intents = Intents.default()  # Fixed this line
 bot = commands.Bot(command_prefix='/', intents=intents)
 
 # Flask route to check if the bot is running
