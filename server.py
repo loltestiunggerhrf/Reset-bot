@@ -1,13 +1,13 @@
+from flask import Flask
 import os
-from flask import Flask  # or another framework if you're using a different one
 
 app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "Hello, Render!"
+@app.route("/")
+def hello():
+    return "Hello, World!"
 
-if __name__ == '__main__':
-    # Use the PORT environment variable provided by Render
-    port = int(os.environ.get('PORT', 5000))  # Default to 5000 if no PORT is provided
-    app.run(host='0.0.0.0', port=port)
+if __name__ == "__main__":
+    # Get the port from the environment variable, default to 5000 if not set
+    port = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
