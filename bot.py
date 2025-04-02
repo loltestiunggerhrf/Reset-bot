@@ -1,75 +1,76 @@
 import os
+import threading
 import discord
 from discord.ext import commands
-from discord.ui import View, Button
+from flask import Flask
 from pymongo import MongoClient
-from dotenv import load_dotenv
-from discord import app_commands
 
-load_dotenv()  # Load environment variables
-
-# Connect to MongoDB
+# MongoDB connection setup
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db = client["key_system"]
-keys_collection = db["keys"]
 hwid_collection = db["hwids"]
 
-# Create bot instance with slash commands
+# Set up Flask web server
+app = Flask(__name__)
+
+@app.route('/')
+def hello():
+    return "HWID Reset Server is Running"
+
+# Function to run Flask server in the background
+def run_flask():
+    port = int(os.getenv('PORT', 5000))  # Use Render's provided port
+    app.run(host='0.0.0.0', port=port)
+
+# Start Flask server in a separate thread
+threading.Thread(target=run_flask, daemon=True).start()
+
+# Load Discord bot token from environment variables
+TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+
+# Set up bot intents
 intents = discord.Intents.default()
+intents.message_content = True
+
+# Create bot instance
 bot = commands.Bot(command_prefix="/", intents=intents)
 
-# Embed with buttons
-class KeyRedemptionView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="Redeem Key", style=discord.ButtonStyle.green)
-    async def redeem_key(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_message("Enter your key:", ephemeral=True)
-
-        def check(msg):
-            return msg.author == interaction.user and msg.channel == interaction.channel
-
-        try:
-            msg = await bot.wait_for("message", check=check, timeout=30)
-            key = msg.content.strip()
-
-            key_data = keys_collection.find_one({"key": key})
-            if not key_data:
-                await interaction.followup.send("Invalid key!", ephemeral=True)
-                return
-
-            keys_collection.delete_one({"key": key})  # Remove key from DB
-            hwid_collection.insert_one({"user_id": interaction.user.id, "hwid": "None"})
-
-            await interaction.followup.send(f"Key `{key}` redeemed! You can now set your HWID.", ephemeral=True)
-        except:
-            await interaction.followup.send("Time expired. Please try again.", ephemeral=True)
-
-    @discord.ui.button(label="Reset HWID", style=discord.ButtonStyle.blurple)
-    async def reset_hwid(self, interaction: discord.Interaction, button: Button):
-        hwid_collection.update_one(
-            {"user_id": interaction.user.id},
-            {"$set": {"hwid": "None"}},
-            upsert=True
-        )
-        await interaction.response.send_message("HWID has been reset!", ephemeral=True)
-
+# Event: Bot is ready
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user}")
-    # Sync app commands (slash commands)
-    await bot.tree.sync()
+    print(f'Logged in as {bot.user}')
+    try:
+        synced = await bot.tree.sync()  # Sync slash commands
+        print(f"Synced {len(synced)} commands!")
+    except Exception as e:
+        print(f"Failed to sync commands: {e}")
 
-@bot.tree.command(name="panel", description="Panel to reset HWID!")
+# Slash Command: /reset_hwid (Resets HWID for the user)
+@bot.tree.command(name="reset_hwid", description="Reset your HWID to 'None'")
+async def reset_hwid(interaction: discord.Interaction):
+    user_id = interaction.user.id
+
+    # Reset HWID in MongoDB
+    hwid_collection.update_one(
+        {"user_id": user_id},
+        {"$set": {"hwid": "None"}},
+        upsert=True
+    )
+
+    await interaction.response.send_message(f"{interaction.user.mention}, your HWID has been reset to 'None'!", ephemeral=True)
+
+# Slash Command: /panel (Displays a control panel to reset HWID)
+@bot.tree.command(name="panel", description="View the panel to reset HWID.")
 async def panel(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="Key Redemption & HWID Reset",
-        description="Use the buttons below to redeem your key or reset HWID.",
+        title="HWID Reset Panel",
+        description="Use the buttons below to reset your HWID.",
         color=discord.Color.blue()
     )
-    await interaction.response.send_message(embed=embed, view=KeyRedemptionView())
+    
+    # You can add buttons and other interactive elements here if needed
+    await interaction.response.send_message(embed=embed)
 
-# Start the bot
-bot.run(os.getenv("DISCORD_BOT_TOKEN"))
+# Run the bot
+bot.run(TOKEN)
