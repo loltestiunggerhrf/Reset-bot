@@ -4,8 +4,7 @@ from discord.ext import commands
 from discord.ui import View, Button
 from pymongo import MongoClient
 from dotenv import load_dotenv
-import subprocess
-import threading
+from discord import app_commands
 
 load_dotenv()  # Load environment variables
 
@@ -16,7 +15,7 @@ db = client["key_system"]
 keys_collection = db["keys"]
 hwid_collection = db["hwids"]
 
-# Create bot instance
+# Create bot instance with slash commands
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="/", intents=intents)
 
@@ -60,24 +59,17 @@ class KeyRedemptionView(View):
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+    # Sync app commands (slash commands)
+    await bot.tree.sync()
 
-@bot.command()
-async def panel(ctx):
+@bot.tree.command(name="panel", description="Panel to reset HWID!")
+async def panel(interaction: discord.Interaction):
     embed = discord.Embed(
         title="Key Redemption & HWID Reset",
         description="Use the buttons below to redeem your key or reset HWID.",
         color=discord.Color.blue()
     )
-    await ctx.send(embed=embed, view=KeyRedemptionView())
+    await interaction.response.send_message(embed=embed, view=KeyRedemptionView())
 
-def run_server():
-    # Run the server as a separate process
-    subprocess.Popen(["python", "server.py"])
-
-# Run both bot and server simultaneously
-if __name__ == '__main__':
-    # Start the Flask server in a separate thread
-    threading.Thread(target=run_server).start()
-
-    # Start the Discord bot
-    bot.run(os.getenv("DISCORD_BOT_TOKEN"))
+# Start the bot
+bot.run(os.getenv("DISCORD_BOT_TOKEN"))
