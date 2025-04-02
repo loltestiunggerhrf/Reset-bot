@@ -1,29 +1,28 @@
-from flask import Flask, request, jsonify
-from pymongo import MongoClient
-import os
-from dotenv import load_dotenv
+import threading
+import discord
+from discord.ext import commands
+from flask import Flask
 
-load_dotenv()
-
+# Flask App Setup
 app = Flask(__name__)
 
-# Connect to MongoDB
-MONGO_URI = os.getenv("MONGO_URI")
-client = MongoClient(MONGO_URI)
-db = client["key_system"]
-keys_collection = db["keys"]
+@app.route('/')
+def home():
+    return "Hello from Flask!"
 
-@app.route("/validate_key", methods=["GET"])
-def validate_key():
-    key = request.args.get("key")  # Get the key from request
-    if not key:
-        return jsonify({"status": "error", "message": "No key provided."}), 400
+def run_flask():
+    app.run(host='0.0.0.0', port=8080)
 
-    key_data = keys_collection.find_one({"key": key})
-    if not key_data:
-        return jsonify({"status": "error", "message": "Invalid key."}), 403
+# Discord Bot Setup
+bot = commands.Bot(command_prefix='/')
 
-    return jsonify({"status": "success", "message": "Key is valid."}), 200
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}")
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+def run_bot():
+    bot.run(os.getenv("DISCORD_BOT_TOKEN"))
+
+# Start Flask server and Discord bot in separate threads
+threading.Thread(target=run_flask).start()
+threading.Thread(target=run_bot).start()
