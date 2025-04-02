@@ -1,7 +1,6 @@
 import os
 import discord
 from discord.ext import commands
-from discord import app_commands
 from discord.ui import View, Button
 from pymongo import MongoClient
 from dotenv import load_dotenv
@@ -72,11 +71,12 @@ async def panel(ctx):
     await ctx.send(embed=embed, view=KeyRedemptionView())
 
 def run_server():
+    # Run the server as a separate process
     subprocess.Popen(["python", "server.py"])
 
 # Run both bot and server simultaneously
 if __name__ == '__main__':
-    # Start the Flask server in a new thread
+    # Start the Flask server in a separate thread
     threading.Thread(target=run_server).start()
 
     # Start the Discord bot
